@@ -29,26 +29,28 @@ codium                     # 桌面会话里启动
 - `/usr/bin/codium` -> `/opt/vscodium/bin/codium`
 - `/usr/share/applications/codium.desktop` + 图标（`/usr/share/icons/hicolor/512x512/apps/codium.png`）
 
-## 真机验收与部署
+## 服务部署（systemd，开机自启）
 
-在真实 Loongnix 25 / Debian 13 桌面上一条命令完成：**校验 → 安装 deb → 冒烟测试（headless + GUI）→ 部署 systemd user timer**：
+> 本仓库**只自动打包 + 上传 GitHub Release，不安装任何 deb**；deb 请按上面「安装」一节自行安装。
+
+在真实 Loongnix 25 / Debian 13 机器上，一条命令把自动打包服务部署为 **systemd 服务并开机自启**（需要 root）：
 
 ```sh
-bash install-on-real-machine.sh [deb路径] [仓库目录]
+sudo bash deploy-service.sh [仓库目录] [检查间隔秒]
 ```
 
-- `deb路径` 默认取脚本同目录最新 `codium_*_loong64.deb`；`仓库目录` 默认脚本所在目录（timer 会定时调用其中的 `check-and-publish.sh --once`）。
-- GUI 冒烟测试仅在检测到桌面会话时执行；headless 冒烟（`codium --version`）必执行。
-- 需要 root/sudo（dpkg 安装）。
+- 默认：仓库目录 = 脚本所在目录；间隔 = 3600 秒（1 小时检查一次上游）
+- 脚本会把仓库复制到 `/opt/vscodium-loong64-deb`，写入 `/etc/systemd/system/codium-autodeb.service`（`Type=simple` 常驻 + `Restart=always`），`systemctl enable --now` 立即启动并开机自启
 
 部署后：
 
 ```sh
-systemctl --user status codium-autodeb.timer   # 定时器状态
-systemctl --user list-timers codium-autodeb    # 下次触发时间
+systemctl status codium-autodeb.service    # 服务状态
+journalctl -u codium-autodeb -f            # 实时日志（检查/打包/上传都会记录）
+systemctl disable --now codium-autodeb     # 停止并取消开机自启
 ```
 
-> 注：在无 systemd/cron 的容器沙箱里无法持久部署服务，脚本专为真机桌面设计。
+> 注：在无 systemd/cron 的容器沙箱里无法持久部署服务，脚本专为真机设计。
 
 ## 自动化原理
 
@@ -75,25 +77,15 @@ GitHub token 通过 `GITHUB_TOKEN` 环境变量或仓库目录下 `.github-token
 
 网络代理在脚本「配置区」的 `PROXY` 变量设置（当前默认 `http://192.168.9.2:12450`，curl 与 git 均走该代理；留空则直连）。
 
-### 定时调度（任选其一）
+### 定时运行（推荐 systemd 服务，见上；备选如下）
 
-**A. systemd user timer**（真机推荐）：
-
-```sh
-mkdir -p ~/.config/systemd/user
-cp systemd/codium-autodeb.service systemd/codium-autodeb.timer ~/.config/systemd/user/
-# 按需修改 service 里的 ExecStart 路径
-systemctl --user daemon-reload
-systemctl --user enable --now codium-autodeb.timer
-```
-
-**B. cron**（每小时）：
+**A. cron**（每小时）：
 
 ```cron
 0 * * * * /绝对路径/check-and-publish.sh --once >> /var/log/codium-autodeb.log 2>&1
 ```
 
-**C. nohup 常驻**：
+**B. nohup 常驻**：
 
 ```sh
 nohup ./check-and-publish.sh --daemon 3600 >> autodeb.log 2>&1 &
@@ -103,9 +95,10 @@ nohup ./check-and-publish.sh --daemon 3600 >> autodeb.log 2>&1 &
 
 | 文件 | 说明 |
 |---|---|
-| `check-and-publish.sh` | 主自动化脚本（检查/构建/发布一体） |
+| `check-and-publish.sh` | 主自动化脚本（定时检查/打包/上传一体，不安装 deb） |
+| `deploy-service.sh` | 部署脚本：装成 systemd 服务并开机自启 |
+| `systemd/codium-autodeb.service` | systemd 单元（常驻 daemon 模式） |
 | `README.md` | 本文件，版本表由脚本自动更新 |
-| `systemd/` | 可选的 systemd timer 单元 |
 | `cache/` `state/` | 下载缓存与已发布版本记录（不入库） |
 | `.github-token` | GitHub 访问令牌（不入库） |
 
