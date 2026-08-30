@@ -270,7 +270,7 @@ publish_release() {
     else
         log "创建 Release $tag ..."
         local body
-        body="VSCodium **$tag** 的 loongarch64 (loong64) 原生 deb 包。\\n\\n- 上游: $UPSTREAM releases/tag/$tag\\n- 构建/验证环境: **$DISTRO_NOTE** / loongarch64\\n- deb sha256: \`$DEB_SHA256\`\\n\\n安装:\\n\\n\\\`\\\`\\\`sh\\nsudo dpkg -i codium_${tag}_loong64.deb\\nsudo apt-get -f install\\n\\\`\\\`\\\`"
+        body="$(printf 'VSCodium **%s** 的 loongarch64 (loong64) 原生 deb 包。\n\n- 上游: %s/releases/tag/%s\n- 构建/验证环境: **%s** / loongarch64\n- deb sha256: `%s`\n\n安装:\n\n```sh\nsudo dpkg -i codium_%s_loong64.deb\nsudo apt-get -f install\n```' "$tag" "$UPSTREAM" "$tag" "$DISTRO_NOTE" "$DEB_SHA256" "$tag")"
         local created
         created="$(gh_api POST "/repos/$OWNER/$REPO/releases" "$(jq -n \
             --arg tag "$tag" \
