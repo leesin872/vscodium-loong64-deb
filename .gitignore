@@ -1,0 +1,8 @@
+# 产物与缓存不入库
+*.deb
+cache/
+state/
+*.log
+
+# 令牌
+.github-token

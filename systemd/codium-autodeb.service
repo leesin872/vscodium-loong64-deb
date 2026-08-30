@@ -1,0 +1,11 @@
+[Unit]
+Description=Auto-package & publish VSCodium loong64 deb
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# 按实际部署路径修改：
+ExecStart=/home/lionude/tmp/vscode/vscodium-loong64-deb/check-and-publish.sh --once
+StandardOutput=append:/var/log/codium-autodeb.log
+StandardError=append:/var/log/codium-autodeb.log
