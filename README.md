@@ -52,6 +52,8 @@ codium                     # 桌面会话里启动
 
 GitHub token 通过 `GITHUB_TOKEN` 环境变量或仓库目录下 `.github-token` 文件（权限 600，已被 `.gitignore` 排除）提供。
 
+网络代理在脚本「配置区」的 `PROXY` 变量设置（当前默认 `http://192.168.9.2:12450`，curl 与 git 均走该代理；留空则直连）。
+
 ### 定时调度（任选其一）
 
 **A. systemd user timer**（真机推荐）：

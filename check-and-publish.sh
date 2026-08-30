@@ -30,6 +30,10 @@ UPSTREAM="VSCodium/vscodium"            # 上游仓库
 ARCH="loong64"                          # 目标架构
 DISTRO_NOTE="Debian 13 (Loongnix 25)"   # 构建/验证环境说明
 
+# 网络代理（curl/git 均生效；留空 = 直连）
+PROXY="http://192.168.9.2:12450"        # 例: http://192.168.9.2:12450
+NO_PROXY_DEFAULT="localhost,127.0.0.1,::1"
+
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"   # 本脚本所在目录
 CACHE_DIR="$BASE_DIR/cache"             # 下载/构建缓存（gitignore）
 STATE_DIR="$BASE_DIR/state"             # 状态（gitignore）
@@ -44,6 +48,17 @@ mkdir -p "$CACHE_DIR" "$STATE_DIR"
 # ---------------------------------------------------------------------------
 log()  { echo "[$(date '+%F %T')] $*" >&2; }   # 日志走 stderr，stdout 留给函数返回值
 die()  { echo "[$(date '+%F %T')] 错误: $*" >&2; exit 1; }
+
+# 应用代理环境变量（curl 自动读取；git 在 push 时显式指定）
+load_proxy() {
+    if [ -n "$PROXY" ]; then
+        export http_proxy="$PROXY" https_proxy="$PROXY" HTTP_PROXY="$PROXY" HTTPS_PROXY="$PROXY"
+        export no_proxy="$NO_PROXY_DEFAULT" NO_PROXY="$NO_PROXY_DEFAULT"
+        log "已启用代理: $PROXY"
+    else
+        log "未配置代理，直连"
+    fi
+}
 
 # GitHub API 封装（带鉴权，输出原始 JSON；失败时非零退出）
 gh_api() { # gh_api METHOD PATH [JSON_DATA]
@@ -253,8 +268,14 @@ push_repo() {
     git remote remove origin 2>/dev/null || true
     git remote add origin "https://github.com/$OWNER/$REPO.git"
     log "推送到 https://github.com/$OWNER/$REPO ..."
-    git push "https://x-access-token:${TOKEN}@github.com/$OWNER/$REPO.git" main:main \
-        || die "git push 失败（token 权限？仓库已存在但无写入权限？）"
+    local push_url="https://x-access-token:${TOKEN}@github.com/$OWNER/$REPO.git"
+    if [ -n "$PROXY" ]; then
+        git -c http.proxy="$PROXY" -c https.proxy="$PROXY" push "$push_url" main:main \
+            || die "git push 失败（token 权限？代理？）"
+    else
+        git push "$push_url" main:main \
+            || die "git push 失败（token 权限？）"
+    fi
     git branch --set-upstream-to=origin/main main >/dev/null 2>&1 || true
     log "推送完成"
 }
@@ -302,6 +323,7 @@ publish_release() {
 # 主流程
 # ---------------------------------------------------------------------------
 main() {
+    load_proxy
     load_token
     get_latest
     if [ -f "$STATE_FILE" ] && [ "$(cat "$STATE_FILE")" = "$TAG" ] && [ "$FORCE" != 1 ]; then
