@@ -29,6 +29,27 @@ codium                     # 桌面会话里启动
 - `/usr/bin/codium` -> `/opt/vscodium/bin/codium`
 - `/usr/share/applications/codium.desktop` + 图标（`/usr/share/icons/hicolor/512x512/apps/codium.png`）
 
+## 真机验收与部署
+
+在真实 Loongnix 25 / Debian 13 桌面上一条命令完成：**校验 → 安装 deb → 冒烟测试（headless + GUI）→ 部署 systemd user timer**：
+
+```sh
+bash install-on-real-machine.sh [deb路径] [仓库目录]
+```
+
+- `deb路径` 默认取脚本同目录最新 `codium_*_loong64.deb`；`仓库目录` 默认脚本所在目录（timer 会定时调用其中的 `check-and-publish.sh --once`）。
+- GUI 冒烟测试仅在检测到桌面会话时执行；headless 冒烟（`codium --version`）必执行。
+- 需要 root/sudo（dpkg 安装）。
+
+部署后：
+
+```sh
+systemctl --user status codium-autodeb.timer   # 定时器状态
+systemctl --user list-timers codium-autodeb    # 下次触发时间
+```
+
+> 注：在无 systemd/cron 的容器沙箱里无法持久部署服务，脚本专为真机桌面设计。
+
 ## 自动化原理
 
 `check-and-publish.sh` 定时检查上游是否有新版本，有则自动执行：
