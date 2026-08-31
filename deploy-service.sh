@@ -29,11 +29,18 @@ UNIT="/etc/systemd/system/codium-autodeb.service"
 echo "==> 1/3 复制仓库到 $DEST"
 rm -rf "$DEST"
 mkdir -p "$DEST"
-# 只复制运行所需；排除缓存/产物/日志/旧状态与 .git
+# 只复制运行所需；排除大产物/日志与 .git
 cp -a "$SRC/check-and-publish.sh" \
       "$SRC/README.md" \
       "$SRC/systemd" \
       "$DEST/"
+# .gitignore 必须带上：否则部署副本里 git add -A 会把 deb/tar.gz/token 误纳入版本库，
+# push 超过 GitHub 100MB 单文件限制必然失败 → state 写不进 → 每轮都重新构建（恶性循环）
+[ -f "$SRC/.gitignore" ] && cp -a "$SRC/.gitignore" "$DEST/"
+# 保留已发布版本记录与下载缓存：避免每次重新部署后对同一版本重复构建/重复下载 200MB
+[ -d "$SRC/state" ] && cp -a "$SRC/state" "$DEST/"
+mkdir -p "$DEST/cache"
+cp -a "$SRC"/cache/*.tar.gz "$DEST/cache/" 2>/dev/null || true
 [ -f "$SRC/.github-token" ] && cp -a "$SRC/.github-token" "$DEST/"
 chmod 600 "$DEST/.github-token" 2>/dev/null || true
 chmod +x "$DEST/check-and-publish.sh"

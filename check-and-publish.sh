@@ -211,7 +211,8 @@ Description: VSCodium - open-source code editor (VS Code binaries)
 EOF
 
     log "dpkg-deb 打包 ..."
-    dpkg-deb --root-owner-group --build "$debroot" "$debfile"
+    dpkg-deb --root-owner-group --build "$debroot" "$debfile.tmp"   # 先写临时文件，成功后再改名，避免被打断时留下半截 deb
+    mv -f "$debfile.tmp" "$debfile"
 
     DEB_SHA256="$(sha256sum "$debfile" | awk '{print $1}')"
     log "deb 构建完成: $debfile"
@@ -257,7 +258,14 @@ push_repo() {
     git init -q 2>/dev/null || true
     git config user.name  "leesin872" >/dev/null 2>&1 || true
     git config user.email "leesin872@users.noreply.github.com" >/dev/null 2>&1 || true
-    git add -A
+    # 只纳入脚本/README/单元文件/.gitignore —— 绝不 add 缓存、deb、token
+    # （部署副本可能没有 .gitignore；git add -A 会把 207MB tar.gz / 134MB deb / token 全纳入，
+    #  导致 push 超过 GitHub 100MB 单文件限制而失败，进而 state 永远写不进去、每轮都重建）
+    for f in .gitignore check-and-publish.sh deploy-service.sh README.md systemd; do
+        [ -e "$f" ] && git add -- "$f" >/dev/null 2>&1 || true
+    done
+    # 清理历史遗留的误跟踪项（旧版 git add -A 污染的仓库）
+    git rm -r --cached --ignore-unmatch cache state '*.deb' '.github-token' '*.log' >/dev/null 2>&1 || true
     if git diff --cached --quiet; then
         log "无代码变更，跳过 commit"
     else
