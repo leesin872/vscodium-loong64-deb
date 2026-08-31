@@ -252,7 +252,7 @@ PY
     log "README.md 版本表已更新"
 }
 
-# 提交并推送脚本与 README 到仓库（deb/cache/state/token 均被 .gitignore 排除）
+# 提交并推送脚本与 README 到仓库（deb/cache/state/token 均被 .gitignore 排除，另有硬屏蔽兜底）
 push_repo() {
     cd "$BASE_DIR"
     git init -q 2>/dev/null || true
@@ -266,6 +266,20 @@ push_repo() {
     done
     # 清理历史遗留的误跟踪项（旧版 git add -A 污染的仓库）
     git rm -r --cached --ignore-unmatch cache state '*.deb' '.github-token' '*.log' >/dev/null 2>&1 || true
+
+    # ---- 硬屏蔽：以下路径绝不进提交、绝不推送（即使 .gitignore 缺失/被绕过）----
+    # 只要暂存区出现这些文件就自动撤出；撤不掉就直接中止，宁可失败也不推送
+    local forbidden='^(cache/|state/|.*\.deb$|\.github-token$|.*\.log$)'
+    local staged; staged="$(git diff --cached --name-only 2>/dev/null)"
+    if echo "$staged" | grep -qE "$forbidden"; then
+        log "检测到被屏蔽的文件进入暂存区，已自动撤出（不提交、不推送）："
+        echo "$staged" | grep -E "$forbidden" | sed 's/^/  - /' >&2
+        echo "$staged" | grep -E "$forbidden" | tr '\n' '\0' | xargs -0 -r git reset -q -- 2>/dev/null || true
+    fi
+    if git diff --cached --name-only 2>/dev/null | grep -qE "$forbidden"; then
+        die "暂存区仍包含被屏蔽的文件，已中止（绝不推送）"
+    fi
+
     if git diff --cached --quiet; then
         log "无代码变更，跳过 commit"
     else

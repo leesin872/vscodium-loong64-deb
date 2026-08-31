@@ -36,7 +36,21 @@ cp -a "$SRC/check-and-publish.sh" \
       "$DEST/"
 # .gitignore 必须带上：否则部署副本里 git add -A 会把 deb/tar.gz/token 误纳入版本库，
 # push 超过 GitHub 100MB 单文件限制必然失败 → state 写不进 → 每轮都重新构建（恶性循环）
-[ -f "$SRC/.gitignore" ] && cp -a "$SRC/.gitignore" "$DEST/"
+if [ -f "$SRC/.gitignore" ]; then
+    cp -a "$SRC/.gitignore" "$DEST/"
+else
+    # 源仓库没有 .gitignore 时兜底生成一份，确保部署副本永远有屏蔽清单
+    cat > "$DEST/.gitignore" <<'EOF'
+# 产物与缓存不入库
+*.deb
+cache/
+state/
+*.log
+
+# 令牌
+.github-token
+EOF
+fi
 # 保留已发布版本记录与下载缓存：避免每次重新部署后对同一版本重复构建/重复下载 200MB
 [ -d "$SRC/state" ] && cp -a "$SRC/state" "$DEST/"
 mkdir -p "$DEST/cache"
